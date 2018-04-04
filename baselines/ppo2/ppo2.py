@@ -102,6 +102,10 @@ class Runner(object):
         mb_obs, mb_rewards, mb_actions, mb_values, mb_dones, mb_neglogpacs = [],[],[],[],[],[]
         mb_states = self.states
         epinfos = []
+
+        distInfos = []
+        sucInfos = []
+
         for _ in range(self.nsteps):
             actions, values, self.states, neglogpacs = self.model.step(self.obs, self.states, self.dones)
             mb_obs.append(self.obs.copy())
@@ -113,6 +117,13 @@ class Runner(object):
             for info in infos:
                 maybeepinfo = info.get('episode')
                 if maybeepinfo: epinfos.append(maybeepinfo)
+
+                distInfo = info.get('distance')
+                distInfos.append(distInfo)
+
+                sucInfo = 1 if distInfo <= 1 else 0
+                sucInfos.append(sucInfo)
+
             mb_rewards.append(rewards)
         #batch of steps to batch of rollouts
         mb_obs = np.asarray(mb_obs, dtype=self.obs.dtype)
@@ -137,7 +148,7 @@ class Runner(object):
             mb_advs[t] = lastgaelam = delta + self.gamma * self.lam * nextnonterminal * lastgaelam
         mb_returns = mb_advs + mb_values
         return (*map(sf01, (mb_obs, mb_returns, mb_dones, mb_actions, mb_values, mb_neglogpacs)),
-            mb_states, epinfos)
+            mb_states, epinfos, distInfos, sucInfos)
 # obs, returns, masks, actions, values, neglogpacs, states = runner.run()
 def sf01(arr):
     """
@@ -179,6 +190,10 @@ def learn(*, policy, env, nsteps, total_timesteps, ent_coef, lr,
     runner = Runner(env=env, model=model, nsteps=nsteps, gamma=gamma, lam=lam)
 
     epinfobuf = deque(maxlen=100)
+
+    distInfoBuf = deque(maxlen=2000)
+    sucInfoBuf = deque(maxlen=2000)
+
     tfirststart = time.time()
 
     nupdates = total_timesteps//nbatch
@@ -189,8 +204,12 @@ def learn(*, policy, env, nsteps, total_timesteps, ent_coef, lr,
         frac = 1.0 - (update - 1.0) / nupdates
         lrnow = lr(frac)
         cliprangenow = cliprange(frac)
-        obs, returns, masks, actions, values, neglogpacs, states, epinfos = runner.run() #pylint: disable=E0632
+        obs, returns, masks, actions, values, neglogpacs, states, epinfos, distInfos, sucInfos = runner.run() #pylint: disable=E0632
         epinfobuf.extend(epinfos)
+
+        distInfoBuf.extend(distInfos)
+        sucInfoBuf.entend(sucInfos)
+
         mblossvals = []
         if states is None: # nonrecurrent version
             inds = np.arange(nbatch)
@@ -230,6 +249,10 @@ def learn(*, policy, env, nsteps, total_timesteps, ent_coef, lr,
             logger.logkv('eprewmean', safemean([epinfo['r'] for epinfo in epinfobuf]))
             logger.logkv('eplenmean', safemean([epinfo['l'] for epinfo in epinfobuf]))
             logger.logkv('time_elapsed', tnow - tfirststart)
+
+            logger.logkv('AI_distance', safemean([distInfoBuf]))
+            logger.logkv('AI_success_rate', safemean([sucInfoBuf]))
+
             for (lossval, lossname) in zip(lossvals, model.loss_names):
                 logger.logkv(lossname, lossval)
             logger.dumpkvs()

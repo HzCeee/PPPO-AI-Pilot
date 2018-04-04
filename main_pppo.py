@@ -75,7 +75,7 @@ def main():
     # args = mujoco_arg_parser().parse_args()
     logger.configure()
     # train(args.env, num_timesteps=args.num_timesteps, seed=args.seed)
-    num_timesteps = int(1e6)
+    num_timesteps = int(1e30)
     seed = 100
     train_ppo(num_timesteps=num_timesteps, seed=seed)
 
