@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
-import argparse
-from baselines.common.cmd_util import mujoco_arg_parser
 from baselines import bench, logger
-
+import os, sys
 from DroneSimEnv_movingTarget import DroneSimEnv
 
 def train(env_id, num_timesteps, seed):
