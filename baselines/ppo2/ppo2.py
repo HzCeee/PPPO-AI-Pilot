@@ -208,7 +208,7 @@ def learn(*, policy, env, nsteps, total_timesteps, ent_coef, lr,
         epinfobuf.extend(epinfos)
 
         distInfoBuf.extend(distInfos)
-        sucInfoBuf.entend(sucInfos)
+        sucInfoBuf.extend(sucInfos)
 
         mblossvals = []
         if states is None: # nonrecurrent version
